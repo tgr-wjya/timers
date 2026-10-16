@@ -2,15 +2,9 @@ package timer
 
 import (
 	"fmt"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
-)
-
-var (
-	dayRegex   = regexp.MustCompile(`(?i)^(\d+(?:\.\d+)?)\s*d(?:ays?)?$`)
-	bareNumber = regexp.MustCompile(`^\d+$`)
 )
 
 func ParseDuration(input string) (time.Duration, error) {
@@ -23,18 +17,18 @@ func ParseDuration(input string) (time.Duration, error) {
 	s = strings.ReplaceAll(s, " ", "")
 
 	// Check for bare numbers lacking units (Review Focus requirement)
-	if bareNumber.MatchString(s) {
+	if _, err := strconv.Atoi(s); err == nil {
 		return 0, fmt.Errorf("invalid duration: missing time unit (did you mean '%ss' or '%sm'?)", s, s)
 	}
 
 	// Handle day formats like "1d" or "2.5d"
-	if matches := dayRegex.FindStringSubmatch(s); matches != nil {
-		days, err := strconv.ParseFloat(matches[1], 64)
-		if err != nil {
-			return 0, fmt.Errorf("invalid day duration: %w", err)
+	lower := strings.ToLower(s)
+	if strings.HasSuffix(lower, "d") {
+		numStr := lower[:len(lower)-1]
+		if days, err := strconv.ParseFloat(numStr, 64); err == nil {
+			hours := days * 24
+			return time.Duration(hours * float64(time.Hour)), nil
 		}
-		hours := days * 24
-		return time.Duration(hours * float64(time.Hour)), nil
 	}
 
 	// Standard Go time.ParseDuration supports "1h30m", "45s", "1.5h", "10m30s"

@@ -20,8 +20,6 @@ type Daemon struct {
 	dbPath     string
 	engine     *timer.Engine
 	store      *storage.Store
-	audio      sound.AudioPlayer
-	notifier   notify.Notifier
 	server     *ipc.Server
 	stopChan   chan struct{}
 	stopOnce   sync.Once
@@ -39,8 +37,6 @@ func NewDaemon(socketPath, dbPath string) (*Daemon, error) {
 		socketPath: socketPath,
 		dbPath:     dbPath,
 		store:      store,
-		audio:      sound.NewAudioPlayer(),
-		notifier:   notify.NewNotifier(),
 		stopChan:   make(chan struct{}),
 	}
 
@@ -115,9 +111,9 @@ func (d *Daemon) handleTimerCompleted(tm *timer.Timer) {
 	// Audio chime (unless muted)
 	if !tm.Mute {
 		if tm.Category == timer.CategoryPomodoroBreak {
-			_ = d.audio.Play(sound.SoundComplete)
+			sound.Play(sound.SoundComplete)
 		} else {
-			_ = d.audio.Play(sound.SoundAlarm)
+			sound.Play(sound.SoundAlarm)
 		}
 	}
 
@@ -132,7 +128,7 @@ func (d *Daemon) handleTimerCompleted(tm *timer.Timer) {
 		msg = "Ready to start the next focus block?"
 	}
 
-	_ = d.notifier.Notify(title, msg, true)
+	notify.Send(title, msg, true)
 }
 
 func (d *Daemon) handleRequest(req ipc.Request) ipc.Response {

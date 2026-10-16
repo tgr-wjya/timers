@@ -1,8 +1,7 @@
 package pomodoro
 
 import (
-	"crypto/rand"
-	"encoding/hex"
+	"fmt"
 	"time"
 )
 
@@ -55,13 +54,9 @@ func NewCycle(taskName string, cfg Config) *Cycle {
 		cfg.TotalRounds = 4
 	}
 
-	b := make([]byte, 8)
-	rand.Read(b)
-	id := hex.EncodeToString(b)
-
 	now := time.Now()
 	return &Cycle{
-		ID:           id,
+		ID:           fmt.Sprintf("%x", now.UnixNano()),
 		TaskName:     taskName,
 		Round:        1,
 		Config:       cfg,

@@ -17,26 +17,32 @@ func parseID(args []string, cmdName string) (int, error) {
 	return id, nil
 }
 
+func sendAction(action string, id int) (*ipc.Response, error) {
+	client, err := getClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to daemon: %w", err)
+	}
+	defer client.Close()
+
+	resp, err := client.Send(ipc.Request{Action: action, ID: id})
+	if err != nil {
+		return nil, err
+	}
+	if resp.Status != "ok" {
+		return nil, fmt.Errorf("error: %s", resp.Message)
+	}
+	return &resp, nil
+}
+
 func RunPause(args []string) error {
 	id, err := parseID(args, "pause")
 	if err != nil {
 		return err
 	}
-
-	client, err := getClient()
-	if err != nil {
-		return fmt.Errorf("failed to connect to daemon: %w", err)
-	}
-	defer client.Close()
-
-	resp, err := client.Send(ipc.Request{Action: "pause", ID: id})
+	resp, err := sendAction("pause", id)
 	if err != nil {
 		return err
 	}
-	if resp.Status != "ok" {
-		return fmt.Errorf("error: %s", resp.Message)
-	}
-
 	fmt.Printf("Timer #%d '%s' paused.\n", id, resp.Timer.Title)
 	return nil
 }
@@ -46,21 +52,10 @@ func RunResume(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	client, err := getClient()
-	if err != nil {
-		return fmt.Errorf("failed to connect to daemon: %w", err)
-	}
-	defer client.Close()
-
-	resp, err := client.Send(ipc.Request{Action: "resume", ID: id})
+	resp, err := sendAction("resume", id)
 	if err != nil {
 		return err
 	}
-	if resp.Status != "ok" {
-		return fmt.Errorf("error: %s", resp.Message)
-	}
-
 	fmt.Printf("Timer #%d '%s' resumed.\n", id, resp.Timer.Title)
 	return nil
 }
@@ -70,19 +65,9 @@ func RunCancel(args []string) error {
 		return fmt.Errorf("timer ID or 'all' required (e.g. 'timer cancel 1' or 'timer cancel all')")
 	}
 
-	client, err := getClient()
-	if err != nil {
-		return fmt.Errorf("failed to connect to daemon: %w", err)
-	}
-	defer client.Close()
-
 	if args[0] == "all" {
-		resp, err := client.Send(ipc.Request{Action: "cancel_all"})
-		if err != nil {
+		if _, err := sendAction("cancel_all", 0); err != nil {
 			return err
-		}
-		if resp.Status != "ok" {
-			return fmt.Errorf("error: %s", resp.Message)
 		}
 		fmt.Println("All active timers cancelled.")
 		return nil
@@ -92,15 +77,9 @@ func RunCancel(args []string) error {
 	if err != nil {
 		return err
 	}
-
-	resp, err := client.Send(ipc.Request{Action: "cancel", ID: id})
-	if err != nil {
+	if _, err := sendAction("cancel", id); err != nil {
 		return err
 	}
-	if resp.Status != "ok" {
-		return fmt.Errorf("error: %s", resp.Message)
-	}
-
 	fmt.Printf("Timer #%d cancelled.\n", id)
 	return nil
 }
