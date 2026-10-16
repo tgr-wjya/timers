@@ -3,6 +3,8 @@ package storage
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 	"timers/internal/pomodoro"
@@ -29,6 +31,13 @@ type Store struct {
 }
 
 func NewStore(dbPath string) (*Store, error) {
+	if dbPath != ":memory:" {
+		dir := filepath.Dir(dbPath)
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create db directory %q: %w", dir, err)
+		}
+	}
+
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite database %q: %w", dbPath, err)

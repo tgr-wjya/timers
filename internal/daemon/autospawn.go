@@ -58,6 +58,14 @@ func EnsureDaemonRunning(socketPath, dbPath string) (*ipc.Client, error) {
 	}
 
 	cmd := exec.Command(exe, "daemon", "--socket", socketPath, "--db", dbPath)
+	logPath := filepath.Join(filepath.Dir(socketPath), "daemon.log")
+	logFile, logErr := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if logErr == nil {
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+		defer logFile.Close()
+	}
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Setsid: true, // Detach process group from terminal
 	}
@@ -68,8 +76,8 @@ func EnsureDaemonRunning(socketPath, dbPath string) (*ipc.Client, error) {
 
 	// 4. Poll socket until ready
 	var readyClient *ipc.Client
-	for i := 0; i < 25; i++ {
-		time.Sleep(20 * time.Millisecond)
+	for i := 0; i < 35; i++ {
+		time.Sleep(30 * time.Millisecond)
 		c, err := ipc.Dial(socketPath)
 		if err == nil && c.Ping() {
 			readyClient = c
@@ -78,7 +86,8 @@ func EnsureDaemonRunning(socketPath, dbPath string) (*ipc.Client, error) {
 	}
 
 	if readyClient == nil {
-		return nil, fmt.Errorf("daemon started but socket %s was not ready in time", socketPath)
+		daemonLog, _ := os.ReadFile(logPath)
+		return nil, fmt.Errorf("daemon started but socket %s was not ready in time (log: %s)", socketPath, string(daemonLog))
 	}
 
 	return readyClient, nil
