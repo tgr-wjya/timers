@@ -66,9 +66,8 @@ func RunResume(args []string) error {
 }
 
 func RunCancel(args []string) error {
-	id, err := parseID(args, "cancel")
-	if err != nil {
-		return err
+	if len(args) == 0 {
+		return fmt.Errorf("timer ID or 'all' required (e.g. 'timer cancel 1' or 'timer cancel all')")
 	}
 
 	client, err := getClient()
@@ -76,6 +75,23 @@ func RunCancel(args []string) error {
 		return fmt.Errorf("failed to connect to daemon: %w", err)
 	}
 	defer client.Close()
+
+	if args[0] == "all" {
+		resp, err := client.Send(ipc.Request{Action: "cancel_all"})
+		if err != nil {
+			return err
+		}
+		if resp.Status != "ok" {
+			return fmt.Errorf("error: %s", resp.Message)
+		}
+		fmt.Println("All active timers cancelled.")
+		return nil
+	}
+
+	id, err := parseID(args, "cancel")
+	if err != nil {
+		return err
+	}
 
 	resp, err := client.Send(ipc.Request{Action: "cancel", ID: id})
 	if err != nil {

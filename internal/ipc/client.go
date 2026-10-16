@@ -57,17 +57,20 @@ func (c *Client) Send(req Request) (Response, error) {
 }
 
 func (c *Client) Ping() bool {
-	client, err := Dial(c.socketPath)
-	if err != nil {
-		return false
-	}
-	defer client.Close()
-
-	resp, err := client.Send(Request{Action: "ping"})
+	resp, err := c.Send(Request{Action: "ping"})
 	if err != nil {
 		return false
 	}
 	return resp.Status == "ok"
+}
+
+func PingSocket(socketPath string) bool {
+	client, err := Dial(socketPath)
+	if err != nil {
+		return false
+	}
+	defer client.Close()
+	return client.Ping()
 }
 
 func (c *Client) Close() error {

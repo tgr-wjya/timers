@@ -28,6 +28,27 @@ func NewEngine(cb CallbackFunc) *Engine {
 	return e
 }
 
+func (e *Engine) Restore(timers []*Timer) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	for _, t := range timers {
+		cp := *t
+		e.timers[cp.ID] = &cp
+		if cp.ID >= e.nextID {
+			e.nextID = cp.ID + 1
+		}
+	}
+}
+
+func (e *Engine) SetNextID(id int) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if id > e.nextID {
+		e.nextID = id
+	}
+}
+
 func (e *Engine) Start(title string, duration time.Duration, category Category, tags []string) *Timer {
 	e.mu.Lock()
 	defer e.mu.Unlock()

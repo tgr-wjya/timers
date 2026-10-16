@@ -22,6 +22,7 @@ func RunStart(args []string) error {
 
 	title := ""
 	watch := false
+	mute := false
 	var tags []string
 
 	for i := 1; i < len(args); i++ {
@@ -29,6 +30,8 @@ func RunStart(args []string) error {
 		switch {
 		case arg == "-f" || arg == "--watch":
 			watch = true
+		case arg == "-m" || arg == "--mute":
+			mute = true
 		case arg == "-t" || arg == "--tag":
 			if i+1 < len(args) {
 				tags = strings.Split(args[i+1], ",")
@@ -56,6 +59,7 @@ func RunStart(args []string) error {
 		Title:       title,
 		DurationSec: int(duration.Seconds()),
 		Tags:        tags,
+		Mute:        mute,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start timer: %w", err)

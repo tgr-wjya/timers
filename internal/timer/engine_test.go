@@ -83,3 +83,33 @@ func TestEngineLifecycle(t *testing.T) {
 		t.Fatalf("expected StatusCancelled, got %v", cancelled.Status)
 	}
 }
+
+func TestEngineRestoreAndIDSequence(t *testing.T) {
+	engine := NewEngine(nil)
+	defer engine.Stop()
+
+	// Simulate restoring timers #5 and #12 from SQLite
+	existing := []*Timer{
+		{ID: 5, Title: "Existing 5", Status: StatusRunning, TargetEnd: time.Now().Add(10 * time.Minute)},
+		{ID: 12, Title: "Existing 12", Status: StatusPaused, RemainingWhenPaused: 5 * time.Minute},
+	}
+
+	engine.Restore(existing)
+
+	// Verify both timers exist in engine
+	t5, ok5 := engine.Get(5)
+	if !ok5 || t5.Title != "Existing 5" {
+		t.Fatalf("expected timer 5 restored, got %+v", t5)
+	}
+	t12, ok12 := engine.Get(12)
+	if !ok12 || t12.Title != "Existing 12" {
+		t.Fatalf("expected timer 12 restored, got %+v", t12)
+	}
+
+	// Starting a new timer must assign ID 13 (max + 1), avoiding collision with 1..12
+	next := engine.Start("New Task", 10*time.Minute, CategoryGeneral, nil)
+	if next.ID != 13 {
+		t.Fatalf("expected next ID to be 13, got %d", next.ID)
+	}
+}
+

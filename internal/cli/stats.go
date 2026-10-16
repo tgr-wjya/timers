@@ -64,12 +64,11 @@ func RunDaemon(args []string) error {
 	}
 
 	if len(args) > 0 && args[0] == "status" {
-		client, err := getClient()
-		if err != nil || !client.Ping() {
+		sockPath := daemon.DefaultSocketPath()
+		if !ipc.PingSocket(sockPath) {
 			fmt.Println("Daemon status: inactive (will auto-spawn on next timer command).")
 			return nil
 		}
-		defer client.Close()
 		fmt.Println("Daemon status: active (running in background).")
 		return nil
 	}

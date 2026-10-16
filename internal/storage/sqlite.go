@@ -135,6 +135,18 @@ func (s *Store) UpdateTimer(t *timer.Timer) error {
 	return s.SaveTimer(t)
 }
 
+func (s *Store) GetMaxID() (int, error) {
+	var maxID sql.NullInt64
+	err := s.db.QueryRow("SELECT MAX(id) FROM timers;").Scan(&maxID)
+	if err != nil {
+		return 0, err
+	}
+	if maxID.Valid {
+		return int(maxID.Int64), nil
+	}
+	return 0, nil
+}
+
 func (s *Store) GetActiveTimers() ([]*timer.Timer, error) {
 	query := `
 	SELECT id, title, category, duration_sec, started_at, target_end, ended_at, status, remaining_sec, tags

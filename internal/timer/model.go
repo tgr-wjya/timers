@@ -32,6 +32,7 @@ type Timer struct {
 	Status              Status        `json:"status"`
 	RemainingWhenPaused time.Duration `json:"remaining_when_paused,omitempty"`
 	Tags                []string      `json:"tags,omitempty"`
+	Mute                bool          `json:"mute,omitempty"`
 }
 
 func (t *Timer) Remaining(now time.Time) time.Duration {

@@ -13,6 +13,7 @@ type Request struct {
 	Tags        []string `json:"tags,omitempty"`
 	SinceSec    int      `json:"since_sec,omitempty"`
 	Limit       int      `json:"limit,omitempty"`
+	Mute        bool     `json:"mute,omitempty"`
 }
 
 type Response struct {

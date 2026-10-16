@@ -41,8 +41,17 @@ func TestCLICommands(t *testing.T) {
 		t.Fatalf("expected usage info in help, got: %s", out)
 	}
 
-	// 3. Test start timer
-	out, err = runCLI("1s", "CLI Test")
+	// 3. Test daemon status BEFORE starting: must be inactive and NOT auto-spawn!
+	out, err = runCLI("daemon", "status")
+	if err != nil {
+		t.Fatalf("failed to run daemon status: %v, output: %s", err, out)
+	}
+	if !strings.Contains(out, "inactive") {
+		t.Fatalf("expected daemon status to be inactive, got: %s", out)
+	}
+
+	// 4. Test start timer with -m (mute)
+	out, err = runCLI("1s", "CLI Test", "-m")
 	if err != nil {
 		t.Fatalf("failed to start timer: %v, output: %s", err, out)
 	}
@@ -50,19 +59,29 @@ func TestCLICommands(t *testing.T) {
 		t.Fatalf("expected started confirmation, got: %s", out)
 	}
 
-	// 4. Test list
-	out, err = runCLI("list")
+	// 5. Test daemon status AFTER starting: must now be active!
+	out, err = runCLI("daemon", "status")
 	if err != nil {
-		t.Fatalf("failed to list timers: %v, output: %s", err, out)
+		t.Fatalf("failed to run daemon status: %v, output: %s", err, out)
 	}
-	if !strings.Contains(out, "CLI Test") {
-		t.Fatalf("expected 'CLI Test' in list, got: %s", out)
+	if !strings.Contains(out, "active") {
+		t.Fatalf("expected daemon status to be active, got: %s", out)
 	}
 
-	// 5. Wait for timer to finish (1.5s)
-	time.Sleep(1500 * time.Millisecond)
+	// 6. Test start another and cancel all
+	out, err = runCLI("10m", "Cancel Me")
+	if err != nil {
+		t.Fatalf("failed to start second timer: %v, output: %s", err, out)
+	}
+	out, err = runCLI("cancel", "all")
+	if err != nil {
+		t.Fatalf("failed to cancel all: %v, output: %s", err, out)
+	}
+	if !strings.Contains(out, "All active timers cancelled") {
+		t.Fatalf("expected cancel all confirmation, got: %s", out)
+	}
 
-	// 6. Test log
+	// 7. Test log
 	out, err = runCLI("log", "--today")
 	if err != nil {
 		t.Fatalf("failed to query log: %v, output: %s", err, out)
@@ -71,7 +90,7 @@ func TestCLICommands(t *testing.T) {
 		t.Fatalf("expected 'CLI Test' in log, got: %s", out)
 	}
 
-	// 7. Test stats
+	// 8. Test stats
 	out, err = runCLI("stats")
 	if err != nil {
 		t.Fatalf("failed to query stats: %v, output: %s", err, out)
@@ -80,12 +99,19 @@ func TestCLICommands(t *testing.T) {
 		t.Fatalf("expected focus summary in stats, got: %s", out)
 	}
 
-	// 8. Test stop daemon
+	// 9. Test stop daemon
 	out, err = runCLI("daemon", "stop")
 	if err != nil {
 		t.Fatalf("failed to stop daemon: %v, output: %s", err, out)
 	}
 	if !strings.Contains(out, "shutting down") && !strings.Contains(out, "stopped") {
 		t.Fatalf("expected daemon stop confirmation, got: %s", out)
+	}
+
+	// 10. Verify status is inactive after stop
+	time.Sleep(150 * time.Millisecond)
+	out, _ = runCLI("daemon", "status")
+	if !strings.Contains(out, "inactive") {
+		t.Fatalf("expected status inactive after stop, got: %s", out)
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 	"time"
 	"timers/internal/ipc"
 )
@@ -66,9 +65,7 @@ func EnsureDaemonRunning(socketPath, dbPath string) (*ipc.Client, error) {
 		defer logFile.Close()
 	}
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setsid: true, // Detach process group from terminal
-	}
+	cmd.SysProcAttr = detachedSysProcAttr()
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("failed to auto-spawn daemon: %w", err)

@@ -19,6 +19,8 @@ type Server struct {
 	handler    HandlerFunc
 	stopOnce   sync.Once
 	stopChan   chan struct{}
+	mu         sync.Mutex
+	conns      map[net.Conn]struct{}
 }
 
 func NewServer(socketPath string, handler HandlerFunc) (*Server, error) {
@@ -41,6 +43,7 @@ func NewServer(socketPath string, handler HandlerFunc) (*Server, error) {
 		listener:   l,
 		handler:    handler,
 		stopChan:   make(chan struct{}),
+		conns:      make(map[net.Conn]struct{}),
 	}
 
 	go s.serve()
@@ -60,12 +63,21 @@ func (s *Server) serve() {
 			}
 		}
 
+		s.mu.Lock()
+		s.conns[conn] = struct{}{}
+		s.mu.Unlock()
+
 		go s.handleConn(conn)
 	}
 }
 
 func (s *Server) handleConn(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		s.mu.Lock()
+		delete(s.conns, conn)
+		s.mu.Unlock()
+		conn.Close()
+	}()
 
 	reader := bufio.NewReader(conn)
 	for {
@@ -96,6 +108,12 @@ func (s *Server) Close() error {
 		if s.listener != nil {
 			err = s.listener.Close()
 		}
+		s.mu.Lock()
+		for c := range s.conns {
+			_ = c.Close()
+		}
+		s.conns = make(map[net.Conn]struct{})
+		s.mu.Unlock()
 		_ = os.Remove(s.socketPath)
 	})
 	return err

@@ -55,10 +55,16 @@ func NewDaemon(socketPath, dbPath string) (*Daemon, error) {
 
 	d.engine = timer.NewEngine(cb)
 
+	// Set nextID to avoid ID collision with previous sessions
+	if maxID, err := d.store.GetMaxID(); err == nil && maxID > 0 {
+		d.engine.SetNextID(maxID + 1)
+	}
+
 	// Recover active timers from DB if any
 	active, err := d.store.GetActiveTimers()
 	if err == nil {
 		now := time.Now()
+		var alive []*timer.Timer
 		for _, a := range active {
 			if a.Status == timer.StatusRunning && !now.Before(a.TargetEnd) {
 				// Expired while daemon was off
@@ -66,7 +72,12 @@ func NewDaemon(socketPath, dbPath string) (*Daemon, error) {
 				ended := a.TargetEnd
 				a.EndedAt = &ended
 				_ = d.store.UpdateTimer(a)
+			} else {
+				alive = append(alive, a)
 			}
+		}
+		if len(alive) > 0 {
+			d.engine.Restore(alive)
 		}
 	}
 
@@ -101,11 +112,13 @@ func (d *Daemon) Start() error {
 }
 
 func (d *Daemon) handleTimerCompleted(tm *timer.Timer) {
-	// Audio chime
-	if tm.Category == timer.CategoryPomodoroBreak {
-		_ = d.audio.Play(sound.SoundComplete)
-	} else {
-		_ = d.audio.Play(sound.SoundAlarm)
+	// Audio chime (unless muted)
+	if !tm.Mute {
+		if tm.Category == timer.CategoryPomodoroBreak {
+			_ = d.audio.Play(sound.SoundComplete)
+		} else {
+			_ = d.audio.Play(sound.SoundAlarm)
+		}
 	}
 
 	// Notification
@@ -137,6 +150,7 @@ func (d *Daemon) handleRequest(req ipc.Request) ipc.Response {
 			cat = timer.CategoryGeneral
 		}
 		tm := d.engine.Start(req.Title, dur, cat, req.Tags)
+		tm.Mute = req.Mute
 		_ = d.store.SaveTimer(tm)
 		return ipc.Response{Status: "ok", Timer: tm}
 
@@ -167,6 +181,18 @@ func (d *Daemon) handleRequest(req ipc.Request) ipc.Response {
 		}
 		_ = d.store.UpdateTimer(tm)
 		return ipc.Response{Status: "ok", Timer: tm}
+
+	case "cancel_all":
+		timers := d.engine.List()
+		for _, t := range timers {
+			if t.Status == timer.StatusRunning || t.Status == timer.StatusPaused {
+				cancelled, err := d.engine.Cancel(t.ID)
+				if err == nil {
+					_ = d.store.UpdateTimer(cancelled)
+				}
+			}
+		}
+		return ipc.Response{Status: "ok", Message: "all active timers cancelled"}
 
 	case "pomo_start":
 		cfg := pomodoro.DefaultConfig()

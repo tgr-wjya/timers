@@ -10,6 +10,8 @@ import (
 	"time"
 	"timers/internal/ipc"
 	"timers/internal/timer"
+
+	"github.com/mattn/go-isatty"
 )
 
 var pieGlyphs = []string{"○", "◔", "◑", "◕", "●"}
@@ -96,16 +98,29 @@ func ResetWindowTitle() string {
 	return "\033]2;\007"
 }
 
+func isTTY(w io.Writer) bool {
+	if f, ok := w.(*os.File); ok {
+		return isatty.IsTerminal(f.Fd()) || isatty.IsCygwinTerminal(f.Fd())
+	}
+	return false
+}
+
 func RenderWatch(client *ipc.Client, id int, out io.Writer) error {
+	tty := isTTY(out)
+
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-	defer func() {
-		fmt.Fprint(out, ResetWindowTitle())
-	}()
+	if tty {
+		defer func() {
+			fmt.Fprint(out, ResetWindowTitle())
+		}()
+	}
 
 	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
+
+	var lastPrintedSec int64 = -1
 
 	for {
 		select {
@@ -128,24 +143,45 @@ func RenderWatch(client *ipc.Client, id int, out io.Writer) error {
 			}
 
 			if target == nil {
-				fmt.Fprintf(out, "\r\033[KTimer #%d not found or expired.\n", id)
+				if tty {
+					fmt.Fprintf(out, "\r\033[KTimer #%d not found or expired.\n", id)
+				} else {
+					fmt.Fprintf(out, "Timer #%d not found or expired.\n", id)
+				}
 				return nil
 			}
 
 			if target.Status == timer.StatusCompleted {
-				fmt.Fprintf(out, "\r\033[K  ✔ 00:00  Timer #%d '%s' Completed!\n", target.ID, target.Title)
+				if tty {
+					fmt.Fprintf(out, "\r\033[K  ✔ 00:00  Timer #%d '%s' Completed!\n", target.ID, target.Title)
+				} else {
+					fmt.Fprintf(out, "Timer #%d '%s' Completed!\n", target.ID, target.Title)
+				}
 				return nil
 			}
 
 			if target.Status == timer.StatusCancelled {
-				fmt.Fprintf(out, "\r\033[K  ✘ Timer #%d '%s' Cancelled.\n", target.ID, target.Title)
+				if tty {
+					fmt.Fprintf(out, "\r\033[K  ✘ Timer #%d '%s' Cancelled.\n", target.ID, target.Title)
+				} else {
+					fmt.Fprintf(out, "Timer #%d '%s' Cancelled.\n", target.ID, target.Title)
+				}
 				return nil
 			}
 
 			// Render progress line and window title
 			line := FormatProgressLine(target, now, 24)
-			title := FormatWindowTitle(target, now)
-			fmt.Fprintf(out, "\r\033[K%s%s", line, title)
+			if tty {
+				title := FormatWindowTitle(target, now)
+				fmt.Fprintf(out, "\r\033[K%s%s", line, title)
+			} else {
+				// For non-interactive streams (pipes/logs), log once per second
+				curSec := now.Unix()
+				if curSec != lastPrintedSec {
+					lastPrintedSec = curSec
+					fmt.Fprintf(out, "%s\n", line)
+				}
+			}
 		}
 	}
 }
